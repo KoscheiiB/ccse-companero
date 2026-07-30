@@ -51,18 +51,19 @@ self.addEventListener("activate", event => {{
 self.addEventListener("fetch", event => {{
   const request = event.request;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(
-    caches.match(request, {{ ignoreSearch: true }}).then(cached => {{
-      const network = fetch(request).then(response => {{
-        if (response && response.ok) {{
-          const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put(request, copy));
-        }}
+  event.respondWith((async () => {{
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(request, {{ ignoreSearch: true }});
+    // Refresh in the background even when the cache answers, but swallow failures:
+    // being offline is the expected state here, not an error worth surfacing.
+    const update = fetch(request)
+      .then(response => {{
+        if (response && response.ok) cache.put(request, response.clone());
         return response;
-      }});
-      return cached || network.catch(() => caches.match("./ccse.html"));
-    }})
-  );
+      }})
+      .catch(() => null);
+    return cached || (await update) || (await cache.match("./ccse.html"));
+  }})());
 }});
 """
 

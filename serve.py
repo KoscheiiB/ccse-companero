@@ -14,6 +14,12 @@ DEFAULT_PORT = 8765
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+    # without this the manifest is served as octet-stream and iOS ignores it
+    extensions_map = {
+        **http.server.SimpleHTTPRequestHandler.extensions_map,
+        ".webmanifest": "application/manifest+json",
+    }
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")

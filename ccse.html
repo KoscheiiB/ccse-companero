@@ -7,7 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
-<title>CCSE</title>
+<title>Compi</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
 <style>
 /* JS resolves auto -> an explicit data-theme, so each palette is defined once and
    never duplicated across a media query. */
@@ -127,6 +129,7 @@ input{font:inherit;width:100%;min-height:46px;padding:var(--s3) var(--s4);
            font-size:14px;line-height:1.25}
 .stat .num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mut{color:var(--mut);font-size:13px}
+code{font-family:ui-monospace,monospace;font-size:12px}
 .score{font-size:30px;font-weight:800;text-align:center;line-height:1.1;
        font-variant-numeric:tabular-nums}
 .ctr{text-align:center}
@@ -149,6 +152,13 @@ input{font:inherit;width:100%;min-height:46px;padding:var(--s3) var(--s4);
 </style>
 </head>
 <body>
+<noscript><div class="wrap"><div class="card">
+  <p><b>Esta página necesita JavaScript.</b></p>
+  <p class="mut">Si la has abierto desde la app Archivos del iPhone, iOS la muestra con
+  una vista previa que no ejecuta JavaScript, y por eso aparece en blanco. Ábrela desde
+  un servidor: <code>python3 serve.py</code> en el ordenador y luego visita la dirección
+  que imprime.</p>
+</div></div></noscript>
 <div class="wrap" id="app"></div>
 <div class="fix" id="foot" hidden><div class="in" id="footin"></div></div>
 
@@ -366,11 +376,12 @@ function home(){
       <div class="chips">${BANK.map(b=>`<div class="chip"><b>${b.n}</b><span>T${b.t}</span></div>`).join("")}</div>
       ${pend?`<div class="mut ctr" style="margin-top:var(--s2)">${pend} sin explicación</div>`:``}
     </div>
-    <div class="card tight">
+    <div class="card tight stack">
       <div class="row">
         <button class="btn neu sm" onclick="expo()" ${runs.length?"":"disabled"}>Exportar</button>
-        <button class="btn dng sm" onclick="wipe()" ${runs.length?"":"disabled"}>Borrar</button>
+        <button class="btn neu sm" onclick="imp()">Importar</button>
       </div>
+      <button class="btn dng sm" onclick="wipe()" ${runs.length?"":"disabled"}>Borrar</button>
     </div>`;
 }
 
@@ -378,6 +389,34 @@ function paceLine(runs){
   const t = [];
   for(const r of runs) for(const it of r.items) if(it.ms) t.push(it.ms);
   return t.length ? ` · ${Math.round(median(t)/1000)} s/pregunta` : "";
+}
+
+// Added to the home screen, iOS gives the app its own storage container, separate
+// from Safari's. Import exists so a history started in the browser can move across.
+function imp(){
+  const picker = Object.assign(document.createElement("input"),
+    {type:"file", accept:"application/json,.json"});
+  picker.onchange = () => {
+    const file = picker.files && picker.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let incoming;
+      try { incoming = JSON.parse(reader.result) } catch { incoming = null }
+      if(!Array.isArray(incoming)) return alert("Ese archivo no es un histórico válido.");
+      const runs = hist(), seen = new Set(runs.map(r => r.ts));
+      let added = 0;
+      for(const run of incoming){
+        if(!run || !Array.isArray(run.items) || seen.has(run.ts)) continue;
+        runs.push(run); seen.add(run.ts); added++;
+      }
+      runs.sort((a,b) => (a.ts||0) - (b.ts||0));
+      save(runs); home();
+      alert(added ? `${added} sesión(es) importada(s).` : "Nada nuevo que importar.");
+    };
+    reader.readAsText(file);
+  };
+  picker.click();
 }
 
 function expo(){
@@ -589,6 +628,12 @@ function one(id){
 }
 
 home();
+
+// Caches the app for offline use. Requires a secure origin, so this quietly does
+// nothing when the page is opened over plain HTTP or straight off the filesystem.
+if("serviceWorker" in navigator){
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
 </script>
 </body>
 </html>

@@ -19,7 +19,52 @@ ROOT = pathlib.Path(__file__).parent
 QUESTIONS = ROOT / "questions.json"
 TEMPLATE = ROOT / "template.html"
 OUTPUT = ROOT / "ccse.html"
+WORKER = ROOT / "sw.js"
 DATA_MARKER = "/*__DATA__*/"
+
+# Cached for offline use once the app has been added to the home screen. The cache is
+# keyed on a hash of the built page, so a rebuild retires the old one automatically
+# instead of serving yesterday's questions for ever.
+PRECACHE = ("./", "./ccse.html", "./manifest.webmanifest",
+            "./icon-180.png", "./icon-512.png")
+
+WORKER_SOURCE = """\
+const CACHE = "ccse-{version}";
+const ASSETS = {assets};
+
+self.addEventListener("install", event => {{
+  event.waitUntil(
+    caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
+}});
+
+self.addEventListener("activate", event => {{
+  event.waitUntil(
+    caches.keys()
+      .then(names => Promise.all(names.filter(n => n !== CACHE).map(n => caches.delete(n))))
+      .then(() => self.clients.claim())
+  );
+}});
+
+// Serve from cache so the app opens with no network at all, then refresh in the
+// background so the next launch has the newest build.
+self.addEventListener("fetch", event => {{
+  const request = event.request;
+  if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
+  event.respondWith(
+    caches.match(request, {{ ignoreSearch: true }}).then(cached => {{
+      const network = fetch(request).then(response => {{
+        if (response && response.ok) {{
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(request, copy));
+        }}
+        return response;
+      }});
+      return cached || network.catch(() => caches.match("./ccse.html"));
+    }})
+  );
+}});
+"""
 
 TAREAS = (1, 2, 3, 4, 5)
 LETTERS = "abc"
@@ -147,8 +192,22 @@ def main():
         return 1
 
     data = json.dumps(questions, ensure_ascii=False, separators=(",", ":"))
-    OUTPUT.write_text(template.replace(DATA_MARKER, data), encoding="utf8")
+    page = template.replace(DATA_MARKER, data)
+    OUTPUT.write_text(page, encoding="utf8")
+
+    version = hashlib.sha1(page.encode("utf8")).hexdigest()[:12]
+    WORKER.write_text(
+        WORKER_SOURCE.format(version=version, assets=json.dumps(list(PRECACHE))),
+        encoding="utf8",
+    )
+
+    missing = [name for name in PRECACHE
+               if name not in ("./",) and not (ROOT / name.lstrip("./")).exists()]
+    if missing:
+        print(f"\nwarning: offline cache lists files that do not exist: {missing}")
+
     print(f"\nwrote {OUTPUT.name} ({OUTPUT.stat().st_size // 1024} KB)")
+    print(f"wrote {WORKER.name} (cache ccse-{version})")
     return 0
 
 

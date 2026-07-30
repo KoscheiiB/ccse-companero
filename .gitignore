@@ -1,0 +1,9 @@
+# Scratch work and personal captures
+work/
+sources/
+screenshots/
+
+# OS and Python noise
+.DS_Store
+__pycache__/
+*.pyc

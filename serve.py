@@ -1,7 +1,15 @@
-"""Serve the folder over HTTP with caching disabled.
+"""Serve the app locally, with caching disabled.
 
-Useful when opening the app on a phone: browsers will happily keep serving an old
-copy of ccse.html after a rebuild, which makes it look like a change did nothing.
+Two deliberate restrictions, because this runs in a working directory that also holds
+notes, source material and a .git directory:
+
+  * it binds to loopback only, so nothing on the local network can reach it. To open the
+    app on a phone, put a reverse proxy in front of this rather than widening the bind.
+  * it serves an explicit list of files, so a stray path cannot walk into anything else,
+    and there are no directory listings.
+
+Caching is off because a browser will otherwise keep serving an old copy of the app after
+a rebuild, which looks exactly like a change that did nothing.
 
 Usage: python3 serve.py [port]
 """
@@ -9,16 +17,40 @@ Usage: python3 serve.py [port]
 import http.server
 import socketserver
 import sys
+import urllib.parse
 
+HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+HOME = "/ccse.html"
+
+# Everything the installed app needs, and nothing else.
+ALLOWED = frozenset({
+    HOME,
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/icon-180.png",
+    "/icon-512.png",
+})
 
 
-class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
-    # without this the manifest is served as octet-stream and iOS ignores it
+class AppHandler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
+        # served as octet-stream otherwise, and iOS then ignores the manifest
         ".webmanifest": "application/manifest+json",
     }
+
+    def send_head(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/":
+            self.send_response(302)
+            self.send_header("Location", HOME)
+            self.end_headers()
+            return None
+        if path not in ALLOWED:
+            self.send_error(404, "Not Found")
+            return None
+        return super().send_head()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, must-revalidate")
@@ -27,7 +59,7 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def send_header(self, keyword, value):
-        # without Last-Modified the browser has no basis for a 304, so it always refetches
+        # with no Last-Modified the browser has no basis for a 304, so it always refetches
         if keyword == "Last-Modified":
             return
         super().send_header(keyword, value)
@@ -36,8 +68,9 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("0.0.0.0", port), NoCacheHandler) as server:
-        print(f"http://localhost:{port}/ccse.html")
+    with socketserver.TCPServer((HOST, port), AppHandler) as server:
+        print(f"http://localhost:{port}{HOME}", flush=True)
+        print(f"bound to {HOST} only; {len(ALLOWED)} files served", flush=True)
         server.serve_forever()
 
 

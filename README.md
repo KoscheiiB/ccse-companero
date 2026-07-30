@@ -40,9 +40,15 @@ block that says so, rather than leaving you guessing.
 python3 serve.py
 ```
 
-Then browse to `http://<your-machine>:8765/ccse.html` from the phone. The server
-disables caching, because otherwise a phone browser keeps showing a stale copy after a
-rebuild and you lose an hour working out why your change did nothing.
+`serve.py` deliberately binds to loopback only, and serves an explicit list of five
+files rather than the directory it sits in. The working directory holds notes, source
+material and a `.git` directory, none of which has any business being reachable, and a
+plain static server would hand all of it out including directory listings. So there is
+no `http://<your-machine>:8765` to browse to from the phone: reaching it from another
+device means putting a reverse proxy in front, which is the next section.
+
+Caching is disabled too, because a browser will otherwise keep serving an old copy of
+the app after a rebuild, which looks exactly like a change that did nothing.
 
 ### Installing it for offline use
 
@@ -51,10 +57,10 @@ is no good on a commute. To get it working with nothing running at all, load it 
 **HTTPS** and add it to your home screen.
 
 It has to be HTTPS, and not because of Safari's preferences. **Service workers are only
-permitted in a secure context**, so an offline cache is impossible over
-`http://192.168.x.x` no matter what else you configure. Any source of a real certificate
-will do; a Tailscale tailnet is what I used, since it issues one for the machine's own
-name:
+permitted in a secure context**, so an offline cache is impossible over plain HTTP no
+matter what else you configure. Any source of a real certificate will do; a Tailscale
+tailnet is what I used, since it issues one for the machine's own name and reaches the
+phone over cellular as well as wifi:
 
 ```
 python3 serve.py                      # serves localhost:8765
@@ -80,10 +86,17 @@ To take it all down again:
 
 ```
 tailscale serve reset
+pkill -f "python3 serve.py"
 ```
 
-An installed copy keeps working after that. The server is only needed to install or to
-update.
+An installed copy keeps working after that, since it is running from its own cache. The
+server is only needed to install or to update.
+
+If you also switch the certificate feature back off in the admin console, remember that
+you have to switch it on again before the next update, or `serve` will refuse with the
+same message as the first time. Worth knowing that certificates for these names are
+published to public Certificate Transparency logs, so the hostname becomes a matter of
+public record even though the machine itself stays unreachable from the internet.
 
 One catch worth knowing: iOS gives a home screen app its own storage container, separate
 from Safari's. History built up in the browser will not appear in the installed app. Use

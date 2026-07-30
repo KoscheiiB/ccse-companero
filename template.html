@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f2f2f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
+<title>CCSE</title>
+<style>
+/* JS resolves auto -> an explicit data-theme, so each palette is defined once and
+   never duplicated across a media query. */
+:root{
+  --bg:#f2f2f4; --card:#fff; --fg:#16161a; --mut:#65656d; --line:#ebebef; --edge:#d0d0d6;
+  --accent:#8d2027; --accent-fg:#fff; --ink:#8d2027; --danger:#c62828;
+  --good:#2f8f34; --good-bg:#eaf6ea; --bad-bg:#fbecec;
+  --dot:#c2c2ca; --dim:#83838c;
+  --exp-bg:#f7f5f1;
+  --todo-bg:#fff7e0; --todo-line:#b8860b; --todo-fg:#5a4610;
+  --bar:#e0e0e6; --warn:#b06f00; --nope:#cf9a9a;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px;
+}
+:root[data-theme="dark"]{
+  --bg:#141416; --card:#1f1f22; --fg:#f0f0f3; --mut:#9d9da5; --line:#2e2e33; --edge:#42424a;
+  --accent:#a8323b; --accent-fg:#fff; --ink:#ff9ba1; --danger:#ff6b6b;
+  --good:#4cc746; --good-bg:#182a19; --bad-bg:#33191c;
+  --dot:#55555e; --dim:#8a8a93;
+  --exp-bg:#26262b;
+  --todo-bg:#2e2717; --todo-line:#c99000; --todo-fg:#e8cf95;
+  --bar:#3a3a42; --warn:#e0a838; --nope:#8a5a60;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{overscroll-behavior-y:contain}
+body{margin:0;font:16px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+     background:var(--bg);color:var(--fg);
+     padding:env(safe-area-inset-top) var(--s3) env(safe-area-inset-bottom) var(--s3);
+     -webkit-text-size-adjust:100%}
+.wrap{max-width:600px;margin:0 auto;padding:var(--s2) 0 80px}
+
+/* header: title + theme icon on one row, no wasted vertical space */
+.top{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
+.top h1{flex:1;font-size:17px;font-weight:700;margin:0;letter-spacing:.2px;text-align:center}
+.spacer{width:44px;flex:0 0 44px}
+
+.card{background:var(--card);border-radius:14px;padding:var(--s4);margin:var(--s2) 0}
+.card.tight{padding:var(--s3) var(--s4)}
+.ttl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+     color:var(--mut);margin-bottom:var(--s2)}
+
+/* Action buttons opt IN via .btn, so role classes always outrank the base.
+   Never restyle the bare `button` type selector: it fights .opt and .btn both. */
+.btn{font:inherit;font-weight:600;border:1.5px solid transparent;border-radius:11px;
+     min-height:46px;padding:var(--s3) var(--s4);background:transparent;color:var(--fg);
+     cursor:pointer;width:100%;transition:opacity .15s ease}
+.btn:active{opacity:.6}
+.btn[disabled]{opacity:.35;cursor:default}
+.btn.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.out{color:var(--ink);border-color:var(--ink)}
+.btn.neu{color:var(--fg);border-color:var(--edge)}
+.btn.dng{color:var(--danger);border-color:var(--danger)}
+.btn.sm{min-height:42px;padding:var(--s2) var(--s3);font-size:14px}
+.stack>*+*{margin-top:var(--s2)}
+.row{display:flex;gap:var(--s2)}.row>*{flex:1;min-width:0}
+
+/* icon button: 20px glyph, 44px tap area per the touch-target rule */
+.icon{width:44px;height:44px;flex:0 0 44px;padding:0;border-radius:11px;
+      border:1.5px solid var(--edge);background:transparent;color:var(--fg);
+      display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon svg{width:20px;height:20px;display:block}
+
+/* bank as chips instead of a 5-row table: same data, a third of the height */
+.chips{display:flex;gap:var(--s1)}
+.chip{flex:1;text-align:center;background:var(--bg);border-radius:9px;padding:var(--s2) 2px}
+.chip b{display:block;font-size:16px;font-variant-numeric:tabular-nums}
+.chip span{font-size:11px;color:var(--mut)}
+
+/* geometry must NOT change when answered, or the list shifts under your thumb */
+.opt{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3) var(--s2);
+     border-radius:10px;cursor:pointer;min-height:46px;
+     border:1.5px solid transparent;background:transparent;color:inherit;text-align:left;
+     font:inherit;font-weight:400;width:100%;margin:1px 0}
+.opt:focus:not(:focus-visible){outline:none}
+.dot{flex:0 0 22px;height:22px;border-radius:50%;border:2.5px solid var(--dot);display:flex;
+     align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;margin-top:1px}
+.opt.good .dot{background:var(--good);border-color:var(--good)}
+.opt.bad .dot{background:var(--danger);border-color:var(--danger)}
+.opt.good{background:var(--good-bg)}.opt.bad{background:var(--bad-bg)}
+.opt.dim{color:var(--dim)}
+
+.qhead{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2);
+       font-size:13px;color:var(--mut)}
+/* one segment per exam question, filled as you answer */
+.dots{display:flex;gap:2px;flex:1}
+.dots i{flex:1;height:4px;border-radius:2px;background:var(--bar)}
+.dots i.ok{background:var(--good)}
+.dots i.no{background:var(--danger)}
+.clock{flex:0 0 44px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+       color:var(--mut)}
+.clock.warn{color:var(--warn)}
+.clock.crit{color:var(--danger)}
+.badge{background:var(--accent);color:var(--accent-fg);font-weight:700;border-radius:6px;
+       padding:1px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+.q{font-size:17px;line-height:1.35;margin:0 0 var(--s3)}
+.verdict{font-weight:700;font-size:15px;margin-top:var(--s3)}
+.exp{background:var(--exp-bg);border-radius:8px;
+     padding:var(--s3);margin-top:var(--s2);font-size:13.5px;line-height:1.42}
+.exp .w{border-left:3px solid var(--nope);padding-left:var(--s3);margin-top:var(--s3)}
+.exp .w:first-child{margin-top:0}
+.exp .w.key{border-left-color:var(--good);font-size:14.5px}
+.exp .lbl{display:block;margin-bottom:2px;font-weight:400;color:var(--mut)}
+.exp .w.key .lbl{font-weight:700;color:var(--good)}
+.src{background:var(--exp-bg);border-radius:8px;padding:var(--s3);margin-top:var(--s2);
+     font-style:italic;color:var(--mut);font-size:13px;line-height:1.4}
+.todo .lbl{font-weight:700;color:var(--todo-fg)}
+.todo{background:var(--todo-bg);border-left-color:var(--todo-line);color:var(--todo-fg)}
+
+input{font:inherit;width:100%;min-height:46px;padding:var(--s3) var(--s4);
+      border:1.5px solid var(--edge);border-radius:11px;background:var(--card);color:var(--fg)}
+.hit{padding:var(--s3) var(--s1);border-bottom:1px solid var(--line);cursor:pointer;font-size:15px}
+.hit:last-child{border:0}
+.hit small{color:var(--ink);font-weight:700;margin-right:var(--s2)}
+.hit.done{opacity:.4}
+
+.stat+.stat{margin-top:var(--s2)}
+.stat .hd2{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);
+           font-size:14px;line-height:1.25}
+.stat .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mut{color:var(--mut);font-size:13px}
+.score{font-size:30px;font-weight:800;text-align:center;line-height:1.1;
+       font-variant-numeric:tabular-nums}
+.ctr{text-align:center}
+.bar{height:6px;background:var(--bar);border-radius:3px;margin-top:5px;position:relative}
+.bar i{display:block;height:100%;border-radius:3px;transition:width .3s ease,background .3s ease}
+/* Pass-mark marker. It must OVERHANG the bar to read as a gauge tick, so .bar cannot
+   clip: the fill carries its own border-radius instead of relying on overflow:hidden. */
+.bar u{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;
+       background:var(--fg);opacity:.85}
+
+.fix{position:fixed;left:0;right:0;bottom:0;background:var(--bg);
+     padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
+     border-top:1px solid var(--line)}
+.fix .in{max-width:600px;margin:0 auto;display:flex;gap:var(--s2)}
+.fix .btn{flex:1}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="fix" id="foot" hidden><div class="in" id="footin"></div></div>
+
+<script>
+const Q = /*__DATA__*/;
+const TN = {1:"Gobierno y legislación",2:"Derechos y deberes",3:"Organización territorial",
+            4:"Cultura e historia",5:"Sociedad española"};
+// Official structure: 25 questions in 45 minutes. This split matches both the
+// published sample exam and the proportions of the bank itself (120/36/24/36/84).
+const MIX = {1:10, 2:3, 3:2, 4:3, 5:7};
+const NQ = Object.values(MIX).reduce((a,b)=>a+b,0);
+const HK = "ccse_hist", TK = "ccse_theme";
+// examenes.cervantes.es/es/ccse/calificaciones: 15 of 25 correct (60%) to pass,
+// and wrong answers are NOT penalised.
+const PASS = 15, LIMIT = 45*60*1000;
+const app = document.getElementById("app"), foot = document.getElementById("foot"),
+      footin = document.getElementById("footin");
+
+const nrm = s => (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const ls = k => { try { return localStorage.getItem(k) } catch { return null } };
+const lset = (k,v) => { try { localStorage.setItem(k,v) } catch {} };
+const hist = () => { try { return JSON.parse(ls(HK)) || [] } catch { return [] } };
+const save = h => lset(HK, JSON.stringify(h));
+const esc = s => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuf = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]} return a };
+const pct = (ok,tot) => tot ? Math.round(100*ok/tot) : 0;
+const BANK = [1,2,3,4,5].map(t => ({t, n:Q.filter(q=>q.tarea===t).length}));
+// Official question wording is never edited; titles of works are marked at render
+// time from a verified span list, so «El amor brujo» reads as a title.
+function marked(text, titles){
+  let h = esc(text);
+  for(const t of (titles||[])){
+    const e = esc(t);
+    if(h.includes(e)) h = h.split(e).join("«" + e + "»");
+  }
+  return h;
+}
+const fmt = ms => { const s = Math.max(0, Math.round(ms/1000));
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}` };
+const median = xs => { if(!xs.length) return 0;
+  const a = xs.slice().sort((x,y)=>x-y), m = a.length>>1;
+  return a.length%2 ? a[m] : (a[m-1]+a[m])/2 };
+// Continuous hue, but hinged on the official pass mark rather than linear 0-100:
+// 0% is red, exactly 60% is amber, 100% is green. A straight ramp would make 59%
+// and 61% look identical, and 60% is the only number that changes the verdict.
+const PASS_PCT = Math.round(100 * PASS / NQ);
+function barColor(p){
+  const h = p <= PASS_PCT ? (p / PASS_PCT) * 45
+                          : 45 + ((p - PASS_PCT) / (100 - PASS_PCT)) * 85;
+  return `hsl(${Math.round(h)} 68% 45%)`;
+}
+
+/* ---------- per-question miss history, for Repasar fallos ---------- */
+// Walk history in order so `last` is the most recent outcome per question.
+function misses(){
+  const m = {};
+  for(const r of hist().slice().sort((x,y)=>(x.ts||0)-(y.ts||0)))
+    for(const it of r.items){
+      const e = m[it.id] = m[it.id] || {wrong:0, seen:0, last:true};
+      e.seen++; if(!it.ok) e.wrong++;
+      e.last = !!it.ok;
+    }
+  return m;
+}
+// Only what you got wrong MOST RECENTLY: answering it right retires it, so the
+// list can actually reach zero instead of being a permanent scoreboard of old sins.
+function failList(){
+  const m = misses();
+  return Q.filter(q => m[q.id] && !m[q.id].last)
+          .sort((a,b) => (m[b.id].wrong - m[a.id].wrong) || Math.random() - 0.5);
+}
+
+/* ---------- clock: counts down in examen, up elsewhere ---------- */
+let TICK = null;
+function stopClock(){ if(TICK){ clearInterval(TICK); TICK = null } }
+function startClock(){ stopClock(); TICK = setInterval(tickClock, 1000); tickClock() }
+function tickClock(){
+  if(!RUN || !RUN.t0){ stopClock(); return }
+  const down = RUN.mode === "examen", gone = Date.now() - RUN.t0;
+  if(down && gone >= LIMIT){ RUN.timeUp = true; stopClock(); return finish() }
+  const el = document.getElementById("clock");
+  if(!el) return;
+  const left = down ? LIMIT - gone : gone;
+  el.textContent = fmt(left);
+  el.className = "clock" + (down && left < 5*60000 ? " crit"
+                          : down && left < 10*60000 ? " warn" : "");
+}
+
+/* ---------- theme: one icon, cycles auto -> claro -> oscuro ---------- */
+const SVG = {
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 16.5v-5"/><circle cx="12" cy="8" r=".8" fill="currentColor" stroke="none"/>',
+  auto:'<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/>',
+  light:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>',
+  dark:'<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>'
+};
+const THEMES = ["auto","light","dark"];
+const TLABEL = {auto:"Tema: automático", light:"Tema: claro", dark:"Tema: oscuro"};
+const mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+
+function themePref(){ const p = ls(TK); return THEMES.indexOf(p) >= 0 ? p : "auto" }
+function applyTheme(){
+  const p = themePref();
+  const dark = p === "dark" || (p === "auto" && mq && mq.matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  return p;
+}
+function themeBtn(){
+  const p = themePref();
+  return `<button class="icon" onclick="cycleTheme()" aria-label="${TLABEL[p]}" title="${TLABEL[p]}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">${SVG[p]}</svg></button>`;
+}
+let INFO = false;
+function toggleInfo(){ INFO = !INFO; home() }
+function infoBtn(){
+  return `<button class="icon" onclick="toggleInfo()" aria-label="Cómo funciona"
+    aria-expanded="${INFO}" title="Cómo funciona">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">${SVG.info}</svg></button>`;
+}
+
+function cycleTheme(){
+  lset(TK, THEMES[(THEMES.indexOf(themePref()) + 1) % THEMES.length]);
+  applyTheme();
+  render();   // repaint whatever view is open, so the icon updates in place
+}
+if(mq && mq.addEventListener) mq.addEventListener("change", applyTheme);
+applyTheme();
+
+// Shuffle, then interleave by tarea so no two consecutive questions share one,
+// without falling into a predictable cycle. Each step picks a tarea at random,
+// weighted by how many it has left, never repeating the previous one. A tarea
+// holding more than half the remainder is forced out now -- otherwise it has to
+function spread(qs){
+  const b = {};
+  for(const q of qs) (b[q.tarea] = b[q.tarea] || []).push(q);
+  for(const t in b) b[t] = shuf(b[t]);
+  const out = []; let prev = null, total = qs.length;
+  while(total){
+    const left = Object.keys(b).filter(t => b[t].length);
+    let t = left.find(x => b[x].length * 2 > total && x !== prev);
+    if(!t){
+      let cand = left.filter(x => x !== prev);
+      if(!cand.length) cand = left;
+      let r = Math.random() * cand.reduce((s,x) => s + b[x].length, 0);
+      t = cand[cand.length-1];
+      for(const x of cand){ r -= b[x].length; if(r <= 0){ t = x; break } }
+    }
+    out.push(b[t].pop()); prev = t; total--;
+  }
+  return out;
+}
+
+// S = question on screen. RUN = accumulating session (survives returning to the
+// search list, so 25 looked-up questions form ONE run). VIEW = last rendered
+// screen, so the theme toggle can repaint without losing place.
+let S = null, RUN = null, VIEW = home;
+function render(){ VIEW() }
+
+function agg(runs){
+  const t = {tot:0, ok:0, byT:{}};
+  for(const r of runs) for(const it of r.items){
+    t.tot++; t.ok += it.ok?1:0;
+    const b = t.byT[it.tarea] = t.byT[it.tarea] || {tot:0,ok:0};
+    b.tot++; b.ok += it.ok?1:0;
+  }
+  return t;
+}
+
+function statTable(a, bars){
+  let h = "";
+  for(const t of [1,2,3,4,5]){
+    const b = a.byT[t] || {tot:0,ok:0}, p = pct(b.ok,b.tot);
+    h += `<div class="stat">
+      <div class="hd2"><span>T${t} <span class="mut">${TN[t]}</span></span>
+        <span class="num">${b.ok}/${b.tot} · <b>${p}%</b></span></div>
+      ${bars?`<div class="bar"><i style="width:${p}%;background:${barColor(p)}"></i>
+        <u style="left:${PASS_PCT}%"></u></div>`:``}</div>`;
+  }
+  return h;
+}
+
+/* ---------- home ---------- */
+function home(){
+  stopClock();
+  S = RUN = null; foot.hidden = true; VIEW = home;
+  const runs = hist(), a = agg(runs), pend = Q.filter(q=>!q.explanation).length;
+  const nf = failList().length;
+  app.innerHTML = `
+    <div class="top">${infoBtn()}<h1>CCSE · Compañero</h1>${themeBtn()}</div>
+    ${INFO?`<div class="card tight mut" style="font-size:13px;line-height:1.5">
+      <b style="color:var(--fg)">Examen</b> · ${NQ} preguntas en 45 min ·
+        ${Object.entries(MIX).map(([t,n])=>`T${t}×${n}`).join(" · ")}<br>
+      <b style="color:var(--fg)">Apto</b> · ${PASS}/${NQ} (${PASS_PCT}%) · los fallos no penalizan<br>
+      <b style="color:var(--fg)">Sin fin</b> · las ${Q.length} oficiales, sin dos tareas seguidas<br>
+      <b style="color:var(--fg)">Repasar fallos</b> · solo las que fallaste la última vez<br>
+      <b style="color:var(--fg)">Buscar</b> · para responder en paralelo al examen oficial<br>
+      <b style="color:var(--fg)">Fuente</b> · Manual CCSE 2026, Instituto Cervantes
+    </div>`:``}
+    <div class="card stack">
+      <button class="btn out" onclick="begin('buscar')">Buscar preguntas</button>
+      <div class="row"><button class="btn pri" onclick="begin('examen')">Examen · ${NQ}</button>
+      <button class="btn pri" onclick="begin('sinfin')">Sin fin</button></div>
+    </div>
+    <div class="card">
+      <div class="ttl">Histórico</div>
+      ${a.tot ? `<div class="score">${pct(a.ok,a.tot)}%</div>
+      <div class="mut ctr" style="margin-bottom:var(--s3)">${a.ok}/${a.tot} · ${runs.length} ${runs.length===1?"sesión":"sesiones"}${paceLine(runs)}</div>
+      ${statTable(a,true)}`
+      : `<div class="mut ctr">Sin sesiones todavía. Haz un examen para ver tus estadísticas por tarea.</div>`}
+      ${nf?`<button class="btn out" style="margin-top:var(--s3)" onclick="begin('fallos')">Repasar fallos · ${nf}</button>`:``}
+    </div>
+    <div class="card">
+      <div class="ttl">Banco · ${Q.length} oficiales · ${pct(Q.length-pend,Q.length)}% explicadas</div>
+      <div class="chips">${BANK.map(b=>`<div class="chip"><b>${b.n}</b><span>T${b.t}</span></div>`).join("")}</div>
+      ${pend?`<div class="mut ctr" style="margin-top:var(--s2)">${pend} sin explicación</div>`:``}
+    </div>
+    <div class="card tight">
+      <div class="row">
+        <button class="btn neu sm" onclick="expo()" ${runs.length?"":"disabled"}>Exportar</button>
+        <button class="btn dng sm" onclick="wipe()" ${runs.length?"":"disabled"}>Borrar</button>
+      </div>
+    </div>`;
+}
+
+function paceLine(runs){
+  const t = [];
+  for(const r of runs) for(const it of r.items) if(it.ms) t.push(it.ms);
+  return t.length ? ` · ${Math.round(median(t)/1000)} s/pregunta` : "";
+}
+
+function expo(){
+  if(!hist().length) return;
+  const b = new Blob([JSON.stringify(hist(),null,1)],{type:"application/json"});
+  const a = Object.assign(document.createElement("a"),
+    {href:URL.createObjectURL(b), download:"ccse_historico.json"});
+  a.click();
+}
+function wipe(){
+  if(!hist().length) return;
+  if(confirm("¿Borrar todo el histórico? No se puede deshacer.")){ save([]); home() }
+}
+
+/* ---------- session ---------- */
+function begin(mode){
+  RUN = {mode, items:[], done:new Set(), marks:[], t0:Date.now()};
+  RUN.last = RUN.t0;
+  if(mode === "buscar"){ startClock(); return search() }
+  if(mode === "examen"){
+    // stratified: draw MIX[t] from each tarea, keep real exam ordering (T1..T5)
+    RUN.list = [];
+    for(const t of [1,2,3,4,5])
+      RUN.list.push(...shuf(Q.filter(q=>q.tarea===t)).slice(0, MIX[t]));
+  } else if(mode === "fallos"){
+    RUN.list = failList();
+    if(!RUN.list.length) return home();
+  } else {
+    RUN.list = spread(Q);
+  }
+  RUN.i = 0;
+  startClock();
+  step();
+}
+
+function step(){
+  if(RUN.i >= RUN.list.length) return finish();
+  const n = RUN.list.length;
+  ask(RUN.list[RUN.i], RUN.mode==="sinfin" ? `${RUN.i+1}` : `${RUN.i+1}/${n}`);
+}
+
+function ask(q, label){
+  const fresh = !S || S.q !== q;
+  // mc options are shuffled each time so the correct answer's POSITION cannot be
+  // memorised instead of the fact. tf keeps Verdadero/Falso, as the real exam prints it.
+  if(fresh) S = {q, picked:null, label,
+    order: q.type === "tf" ? q.options.map((_, i) => i) : shuf(q.options.map((_, i) => i))};
+  VIEW = () => ask(S.q, S.label);
+  const timed = RUN.mode !== "buscar";
+  const trail = RUN.mode === "examen"
+    ? `<div class="dots">${RUN.list.map((_,i)=>
+        `<i class="${RUN.marks[i]===true?"ok":RUN.marks[i]===false?"no":""}"></i>`).join("")}</div>`
+    : `<span>${q.type==="tf"?"Verdadero o falso":"Elige una"}</span>`;
+  app.innerHTML = `
+    <div class="top">${timed?`<span class="clock" id="clock">0:00</span>`:`<span class="spacer"></span>`}
+      <h1>T${q.tarea} · ${TN[q.tarea]}</h1>${themeBtn()}</div>
+    <div class="card">
+      <div class="qhead"><span class="badge">${S.label}</span>${trail}</div>
+      <div class="q">${marked(q.question, q.titles)}</div>
+      <div id="opts">${S.order.map((real,disp)=>
+        `<button class="opt" onclick="pick(${disp})"><span class="dot"></span><span>${marked(q.options[real], q.titles)}</span></button>`
+      ).join("")}</div>
+      <div id="rev"></div>
+    </div>`;
+  if(S.picked !== null) paint(S.picked);   // survive a theme repaint mid-question
+  navbar();
+  tickClock();
+}
+
+function navbar(){
+  const n = RUN.items.length;
+  const fin = `<button class="btn neu" onclick="finish()">Finalizar${n?` · ${n}`:""}</button>`;
+  if(S && S.picked === null){ footin.innerHTML = fin; foot.hidden = false; return }
+  footin.innerHTML = RUN.mode === "buscar"
+    ? fin + `<button class="btn pri" onclick="search()">Buscar otra</button>`
+    : fin + `<button class="btn pri" onclick="next()">${RUN.i+1 >= RUN.list.length ? "Resultado" : "Siguiente"}</button>`;
+  foot.hidden = false;
+}
+
+function paint(disp){
+  const q = S.q, box = document.getElementById("opts");
+  const right = S.order.indexOf(q.answer_index), ok = disp === right;
+  [...box.children].forEach((el,j)=>{
+    el.onclick = null;
+    if(j === right){ el.classList.add("good"); el.querySelector(".dot").textContent="✓" }
+    else if(j === disp){ el.classList.add("bad"); el.querySelector(".dot").textContent="✕" }
+    else el.classList.add("dim");
+  });
+  document.getElementById("rev").innerHTML = expl(q, ok);
+  return ok;
+}
+
+function pick(i){
+  if(!S || S.picked !== null) return;
+  S.picked = i;
+  const q = S.q, ok = paint(i);
+  if(!RUN.done.has(q.id)){
+    const now = Date.now();
+    RUN.done.add(q.id);
+    RUN.items.push({id:q.id, tarea:q.tarea, ok, ms: now - (RUN.last || now)});
+    RUN.last = now;
+  }
+  if(RUN.mode !== "buscar") RUN.marks[RUN.i] = ok;
+  navbar();
+  // keep the verdict + explanation on screen without hunting for it
+  const rev = document.getElementById("rev");
+  if(rev.scrollIntoView) rev.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+function expl(q, ok){
+  const head = `<div class="verdict" style="color:${ok?"var(--good)":"var(--danger)"}">
+    ${ok?"✓ Correcta":"✕ Incorrecta"}</div>`;
+  if(!q.explanation) return head + `<div class="exp todo"><span class="lbl">Explicación pendiente</span>
+    La respuesta correcta es «${esc(q.options[q.answer_index])}».</div>`;
+  // rows follow the on-screen option order, so the block maps 1:1 to the list above
+  const order = (S && S.order) || q.options.map((_, i) => i);
+  let rows = "";
+  for(const real of order){
+    const opt = q.options[real], key = real === q.answer_index;
+    const txt = key ? q.explanation : (q.why_wrong || {})[opt];
+    if(!txt) continue;
+    rows += `<div class="w${key?" key":""}">
+      <span class="lbl">${key?"✓ ":""}${esc(opt)}</span>${esc(txt)}</div>`;
+  }
+  // Source is a locatable PAGE in the official 102-page manual, not a restatement.
+  // A verbatim quote rides along only when it teaches something extra (a list, figures).
+  let src = q.source_page ? `Manual CCSE 2026 · p. ${esc(String(q.source_page))}` : "";
+  if(q.source_quote) src += (src ? " · " : "") + `«${esc(q.source_quote)}»`;
+  return head + `<div class="exp">${rows}</div>`
+    + (src ? `<div class="src">${src}</div>` : "");
+}
+
+function next(){ RUN.i++; S = null; step() }
+
+function finish(){
+  if(!RUN) return home();
+  stopClock();
+  const items = RUN.items;
+  if(!items.length) return home();
+  const meta = {ts:Date.now(), mode:RUN.mode, items,
+                ms: Date.now() - RUN.t0, timeUp: !!RUN.timeUp};
+  const h = hist(); h.push(meta); save(h);
+  const a = agg([{items}]), all = agg(h);
+  S = RUN = null;
+  VIEW = () => showResult(a, all, meta);
+  showResult(a, all, meta);
+}
+
+function showResult(a, all, meta){
+  // the official verdict only means anything over a full 25-question exam
+  const exam = meta && meta.mode === "examen" && a.tot === NQ;
+  const apto = a.ok >= PASS;
+  const verdict = exam
+    ? `<div class="score" style="color:${apto?"var(--good)":"var(--danger)"};font-size:22px">
+         ${apto?"APTO":"NO APTO"}</div>
+       <div class="mut ctr">necesitas ${PASS} de ${NQ}</div>`
+    : ``;
+  const time = meta && meta.ms ? (meta.mode === "examen"
+      ? `${meta.timeUp?"tiempo agotado · ":""}${fmt(meta.ms)} de ${fmt(LIMIT)}`
+      : `${fmt(meta.ms)} · ${Math.round(median(meta.items.map(i=>i.ms||0))/1000)} s/pregunta`)
+    : "";
+  app.innerHTML = `
+    <div class="top"><span class="spacer"></span><h1>Resultado</h1>${themeBtn()}</div>
+    <div class="card">
+      <div class="score">${a.ok}/${a.tot} · ${pct(a.ok,a.tot)}%</div>
+      ${verdict}
+      <div class="mut ctr" style="margin-bottom:var(--s3)">${time||"esta sesión"}</div>
+      ${statTable(a,true)}
+    </div>
+    <div class="card tight">
+      <div class="ttl" style="margin-bottom:var(--s2)">Acumulado · ${all.ok}/${all.tot} · ${pct(all.ok,all.tot)}%</div>
+      ${statTable(all,false)}
+    </div>`;
+  // Inicio lives in the fixed bar so it never needs a scroll to reach
+  footin.innerHTML = `<button class="btn neu" onclick="home()">Inicio</button>`;
+  foot.hidden = false;
+}
+
+/* ---------- search ---------- */
+function search(){
+  if(!RUN) RUN = {mode:"buscar", items:[], done:new Set(), marks:[], t0:Date.now(), last:Date.now()};
+  S = null; VIEW = search;
+  app.innerHTML = `
+    <div class="top"><span class="spacer"></span><h1>Buscar</h1>${themeBtn()}</div>
+    <div class="card tight"><input id="s" placeholder="2-3 palabras de la pregunta"
+      autocapitalize="off" autocorrect="off" spellcheck="false" oninput="hits(this.value)"></div>
+    <div id="res"></div>`;
+  hits("");
+  navbar();
+  document.getElementById("s").focus();
+}
+
+function hits(v){
+  const n = nrm(v).trim(), res = document.getElementById("res");
+  if(!n){ res.innerHTML = `<div class="card mut ctr">${Q.length} preguntas oficiales.</div>`; return }
+  const ws = n.split(/\s+/);
+  const m = Q.filter(q => { const h = nrm(q.question + " " + q.options.join(" "));
+                            return ws.every(w => h.includes(w)) }).slice(0,25);
+  res.innerHTML = m.length
+    ? `<div class="card">${m.map(q=>`<div class="hit${RUN.done.has(q.id)?" done":""}" onclick="one('${esc(q.id)}')">
+        <small>T${q.tarea}</small>${marked(q.question, q.titles)}</div>`).join("")}</div>`
+    : `<div class="card mut ctr">Sin resultados. Prueba con menos palabras.</div>`;
+}
+
+function one(id){
+  const q = Q.find(x=>x.id===id);
+  S = null;
+  ask(q, `${RUN.items.length+1}`);
+}
+
+home();
+</script>
+</body>
+</html>

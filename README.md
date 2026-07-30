@@ -47,27 +47,49 @@ rebuild and you lose an hour working out why your change did nothing.
 ### Installing it for offline use
 
 Serving works, but it ties the app to a machine being awake on the same network, which
-is no good on a commute. To get it working with nothing running, load it once over
-**HTTPS** and add it to your home screen:
+is no good on a commute. To get it working with nothing running at all, load it once over
+**HTTPS** and add it to your home screen.
+
+It has to be HTTPS, and not because of Safari's preferences. **Service workers are only
+permitted in a secure context**, so an offline cache is impossible over
+`http://192.168.x.x` no matter what else you configure. Any source of a real certificate
+will do; a Tailscale tailnet is what I used, since it issues one for the machine's own
+name:
 
 ```
-python3 serve.py          # in one terminal
-tailscale serve 8765      # in another, if you use Tailscale
+python3 serve.py                      # serves localhost:8765
+tailscale serve --bg 8765             # puts HTTPS in front of it
 ```
 
-Tailscale gives you a real certificate on a `ts.net` address. That matters for three
-separate reasons: it satisfies Safari's HTTPS-Only setting, storage is more durable on
-a secure origin, and service workers are **only** allowed on secure origins. Any other
-way of getting real HTTPS works just as well.
+Two things the docs do not make obvious. Serve is an account-level feature that has to be
+switched on once in the admin console; until you do, the command just prints
+`Serve is not enabled on your tailnet` with a link. And on macOS there is no `tailscale`
+on your `PATH` by default, since the binary lives inside the app bundle at
+`/Applications/Tailscale.app/Contents/MacOS/Tailscale`.
 
-Open the HTTPS address, then Share, then Add to Home Screen. The service worker caches
-the whole app locally, so from then on it opens with no server and no network at all.
+What that gives you is a reverse proxy reachable **only** by your own devices. It is not
+a public address, and it needs no port forwarding. The public equivalent is a different
+command, `tailscale funnel`, which you do not want here.
 
-One catch worth knowing: iOS gives a home screen app its own storage container,
-separate from Safari's. History built up in the browser will not appear in the
-installed app. Use Exportar in Safari and Importar in the installed app to carry it
-across. Import merges by session timestamp, so importing twice does not double your
-numbers.
+Then on the phone, open that HTTPS address in Safari, Share, Add to Home Screen. Launch it
+once from the home screen while it can still reach the machine, because that first launch
+is when the service worker installs and caches the app. After that it opens with no
+server and no network.
+
+To take it all down again:
+
+```
+tailscale serve reset
+```
+
+An installed copy keeps working after that. The server is only needed to install or to
+update.
+
+One catch worth knowing: iOS gives a home screen app its own storage container, separate
+from Safari's. History built up in the browser will not appear in the installed app. Use
+Exportar in Safari and Importar in the installed app to carry it across. Import merges by
+session timestamp, so importing twice does not double your numbers. Deleting the home
+screen icon discards that container, so export first if the history matters.
 
 ## The four modes
 
@@ -133,8 +155,14 @@ duplicate id, a malformed question, or a highlighted work title that does not ac
 occur in the question text.
 
 The service worker's cache name contains a hash of the built page, so a rebuild retires
-the previous cache instead of serving yesterday's questions for ever. After rebuilding,
-an installed copy picks up the change on its next launch.
+the previous cache instead of serving yesterday's questions for ever.
+
+Getting a change onto an installed copy takes one more step than you would expect. Serve
+the folder again, open the installed app while it can reach the machine so the browser
+notices `sw.js` has changed and installs the new worker, then close it fully and reopen.
+The first launch after an update generally still paints the previously cached page; the
+second shows the new build. If the machine is unreachable the check fails quietly and the
+app carries on offline with what it already had.
 
 The answer key check needs `pdftotext` (`brew install poppler` on macOS) and a copy of
 the manual. Both are optional: without them the build says so and carries on.

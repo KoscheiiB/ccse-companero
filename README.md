@@ -30,19 +30,44 @@ rather than a project I would still be configuring the week of the exam.
 
 On a computer, open `ccse.html` directly.
 
-On a phone, either send yourself the file and open it from Files, or serve the folder
-and browse to it over your local network:
+On a phone you have to serve it. Copying the file to the phone does not work: iOS
+previews HTML in the Files app with Quick Look, which renders markup but does not run
+JavaScript, and it gives you no way to hand a `file://` URL to Safari. Since every
+screen here is built in JavaScript, you get a blank white page. There is a `<noscript>`
+block that says so, rather than leaving you guessing.
 
 ```
 python3 serve.py
 ```
 
-Then open `http://<your-machine>:8765/ccse.html`. The server disables caching, because
-otherwise a phone browser will keep showing you a stale copy after a rebuild and you
-will lose an hour working out why your change did nothing.
+Then browse to `http://<your-machine>:8765/ccse.html` from the phone. The server
+disables caching, because otherwise a phone browser keeps showing a stale copy after a
+rebuild and you lose an hour working out why your change did nothing.
 
-Opening the file directly works fine, but browsers restrict storage for local files, so
-your history may not survive between sessions. Serving it over HTTP avoids that.
+### Installing it for offline use
+
+Serving works, but it ties the app to a machine being awake on the same network, which
+is no good on a commute. To get it working with nothing running, load it once over
+**HTTPS** and add it to your home screen:
+
+```
+python3 serve.py          # in one terminal
+tailscale serve 8765      # in another, if you use Tailscale
+```
+
+Tailscale gives you a real certificate on a `ts.net` address. That matters for three
+separate reasons: it satisfies Safari's HTTPS-Only setting, storage is more durable on
+a secure origin, and service workers are **only** allowed on secure origins. Any other
+way of getting real HTTPS works just as well.
+
+Open the HTTPS address, then Share, then Add to Home Screen. The service worker caches
+the whole app locally, so from then on it opens with no server and no network at all.
+
+One catch worth knowing: iOS gives a home screen app its own storage container,
+separate from Safari's. History built up in the browser will not appear in the
+installed app. Use Exportar in Safari and Importar in the installed app to carry it
+across. Import merges by session timestamp, so importing twice does not double your
+numbers.
 
 ## The four modes
 
@@ -102,9 +127,14 @@ Edit `questions.json` or `template.html`, then:
 python3 build.py
 ```
 
-This validates the data and regenerates `ccse.html`. It refuses to write if anything
-looks wrong: an answer that disagrees with the manual, a duplicate id, a malformed
-question, or a highlighted work title that does not actually occur in the question text.
+This validates the data and regenerates `ccse.html`, and writes `sw.js` alongside it.
+It refuses to write if anything looks wrong: an answer that disagrees with the manual, a
+duplicate id, a malformed question, or a highlighted work title that does not actually
+occur in the question text.
+
+The service worker's cache name contains a hash of the built page, so a rebuild retires
+the previous cache instead of serving yesterday's questions for ever. After rebuilding,
+an installed copy picks up the change on its next launch.
 
 The answer key check needs `pdftotext` (`brew install poppler` on macOS) and a copy of
 the manual. Both are optional: without them the build says so and carries on.
@@ -118,6 +148,9 @@ the manual. Both are optional: without them the build says so and carries on.
 | `questions.json` | the 300 questions, answers, explanations and page references |
 | `build.py` | validates the data and builds `ccse.html` |
 | `serve.py` | static file server with caching turned off |
+| `sw.js` | service worker, generated, caches the app for offline use |
+| `manifest.webmanifest` | home screen name, icons and colours |
+| `make_icon.py` | draws the icon PNGs, so they can be changed without an editor |
 
 Your answer history lives in the browser's local storage, not in a file. There is an
 export button if you want a copy.

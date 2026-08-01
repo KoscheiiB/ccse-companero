@@ -65,8 +65,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         super().send_header(keyword, value)
 
 
+def parse_port(arg):
+    try:
+        port = int(arg)
+    except ValueError:
+        sys.exit(f"port must be a whole number, got {arg!r}")
+    if not 1 <= port <= 65535:
+        sys.exit(f"port must be between 1 and 65535, got {port}")
+    return port
+
+
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    port = parse_port(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer((HOST, port), AppHandler) as server:
         print(f"http://localhost:{port}{HOME}", flush=True)
